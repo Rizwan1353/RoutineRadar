@@ -41,7 +41,4 @@ RoutineRadar is a sleek, intuitive productivity web app that allows users to tra
 ## 📂 Getting Started
 
 To run this project locally:
-
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/yourusername/RoutineRadar.git
+https://github.com/Rizwan1353/RoutineRadar.git
