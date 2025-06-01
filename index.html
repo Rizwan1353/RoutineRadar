@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daily Routine Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="splash-screen">
+        <video autoplay muted loop id="splash-video">
+            <source src="splash.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <nav class="navbar">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="white" stroke-width="6" />
+                <line x1="50" y1="50" x2="80" y2="50" stroke="white" stroke-width="5" transform="rotate(45 50 50)" />
+                <circle cx="50" cy="50" r="5" fill="white" />
+            </svg>
+            <span>RoutineRadar</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>🗓️ Daily Routine Tracker</h1>
+        <div class="toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="themeToggle">
+                <span class="slider round"></span>
+            </label>
+            <span id="themeLabel">🌞 Light Mode</span>
+        </div>
+
+        <!-- Task Input Form -->
+        <div class="task-form">
+            <input type="text" id="taskName" placeholder="Task Name" required />
+            <input type="time" id="plannedStart" required />
+            <input type="time" id="plannedEnd" required />
+            <input type="time" id="actualStart" required />
+            <input type="time" id="actualEnd" required />
+            <button id="addTaskBtn">Add Task</button>
+        </div>
+
+        <!-- Task Display Table -->
+        <div class="task-list">
+            <h2>📋 Tasks</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Planned</th>
+                        <th>Actual</th>
+                        <th>Deviation</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="taskTableBody">
+                    <!-- Task rows will be added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Daily Summary -->
+        <div class="summary">
+            <h2>📊 Daily Summary</h2>
+            <p>Total Tasks: <span id="totalTasks">0</span></p>
+            <p>On Time: <span id="onTimeTasks">0</span></p>
+            <p>Delayed: <span id="delayedTasks">0</span></p>
+            <button id="clearAllBtn">🧹 Clear All Tasks</button>
+            <canvas id="barChart" height="200"></canvas>
+            <canvas id="pieChart" height="200" style="margin-top: 30px;"></canvas>
+
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Get elements
+        const form = document.getElementById('taskForm');
+        const tbody = document.querySelector('#taskTable tbody');
+
+        let editTaskId = null;
+
+        // Load tasks from localStorage or empty array
+        function getTasks() {
+            return JSON.parse(localStorage.getItem('tasks')) || [];
+        }
+
+        // Save tasks array to localStorage
+        function saveTasks(tasks) {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        // Render tasks in table
+        function renderTasks() {
+            const tasks = getTasks();
+            tbody.innerHTML = '';
+            tasks.forEach(task => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+        <td>${task.title}</td>
+        <td>${task.plannedTime}</td>
+        <td>${task.actualTime}</td>
+        <td>${task.date}</td>
+        <td>${task.status}</td>
+        <td>
+          <button class="btn-small" onclick="editTask(${task.id})">Edit</button>
+          <button class="btn-small" onclick="deleteTask(${task.id})">Delete</button>
+        </td>
+      `;
+                tbody.appendChild(tr);
+            });
+            generateCharts();
+        }
+
+        // Add or update task
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const title = form.title.value.trim();
+            const plannedTime = parseInt(form.plannedTime.value);
+            const actualTime = parseInt(form.actualTime.value);
+            const date = form.date.value;
+            const status = form.status.value;
+
+            if (!title || !plannedTime || !actualTime || !date || !status) return alert('Please fill all fields');
+
+            let tasks = getTasks();
+
+            if (editTaskId) {
+                // Update existing task
+                tasks = tasks.map(t => t.id === editTaskId ? { id: editTaskId, title, plannedTime, actualTime, date, status } : t);
+                editTaskId = null;
+                form.querySelector('button[type=submit]').textContent = 'Add Task';
+            } else {
+                // Add new task
+                const newTask = {
+                    id: Date.now(),
+                    title,
+                    plannedTime,
+                    actualTime,
+                    date,
+                    status
+                };
+                tasks.push(newTask);
+            }
+
+            saveTasks(tasks);
+            form.reset();
+            renderTasks();
+        });
+
+        // Edit task by id
+        function editTask(id) {
+            const tasks = getTasks();
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            form.title.value = task.title;
+            form.plannedTime.value = task.plannedTime;
+            form.actualTime.value = task.actualTime;
+            form.date.value = task.date;
+            form.status.value = task.status;
+
+            editTaskId = id;
+            form.querySelector('button[type=submit]').textContent = 'Update Task';
+        }
+
+        // Delete task by id
+        function deleteTask(id) {
+            if (!confirm('Are you sure you want to delete this task?')) return;
+            let tasks = getTasks();
+            tasks = tasks.filter(t => t.id !== id);
+            saveTasks(tasks);
+            if (editTaskId === id) {
+                editTaskId = null;
+                form.reset();
+                form.querySelector('button[type=submit]').textContent = 'Add Task';
+            }
+            renderTasks();
+        }
+
+        // Chart.js chart variables
+        let barChartInstance = null;
+        let pieChartInstance = null;
+
+        // Prepare chart data from tasks
+        function prepareChartData(tasks) {
+            const dayLabels = [];
+            const plannedCounts = [];
+            const actualCounts = [];
+            const delayedCount = { delayed: 0, onTime: 0 };
+
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                const dayStr = d.toISOString().split('T')[0];
+                dayLabels.push(dayStr);
+                plannedCounts.push(0);
+                actualCounts.push(0);
+            }
+
+            tasks.forEach(task => {
+                const idx = dayLabels.indexOf(task.date);
+                if (idx !== -1) {
+                    plannedCounts[idx]++;
+                    if (task.status !== 'delayed') actualCounts[idx]++;
+                }
+                if (task.status === 'delayed') delayedCount.delayed++;
+                else delayedCount.onTime++;
+            });
+
+            return { dayLabels, plannedCounts, actualCounts, delayedCount };
+        }
+
+        // Generate charts
+        function generateCharts() {
+            const tasks = getTasks();
+            const { dayLabels, plannedCounts, actualCounts, delayedCount } = prepareChartData(tasks);
+
+            // Destroy old charts
+            if (barChartInstance) barChartInstance.destroy();
+            if (pieChartInstance) pieChartInstance.destroy();
+
+            // Bar Chart
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: dayLabels.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short' })),
+                    datasets: [
+                        {
+                            label: 'Planned Tasks',
+                            data: plannedCounts,
+                            backgroundColor: '#FFB74D',
+                        },
+                        {
+                            label: 'Actual On-Time Tasks',
+                            data: actualCounts,
+                            backgroundColor: '#FF6F00',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Planned vs Actual Tasks (Last 7 Days)' },
+                        legend: { position: 'top' },
+                    }
+                }
+            });
+
+            // Pie Chart
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            pieChartInstance = new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Delayed Tasks', 'On-Time Tasks'],
+                    datasets: [{
+                        label: 'Task Status',
+                        data: [delayedCount.delayed, delayedCount.onTime],
+                        backgroundColor: ['#FF7043', '#81C784'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Task Delay Summary' }
+                    }
+                }
+            });
+        }
+
+        // Initialize
+        renderTasks();
+    </script>
+
+</body>
+
+</html>
